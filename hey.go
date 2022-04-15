@@ -121,9 +121,15 @@ func main() {
 	flag.Var(&hs, "H", "")
 
 	flag.Parse()
+
+	// 没有 <url> 的，现已经切换为-url 不需要此处逻辑
 	// if flag.NArg() < 1 {
 	// 	usageAndExit("")
 	// }
+
+	if flag.NFlag() < 1 {
+		usageAndExit("")
+	}
 
 	runtime.GOMAXPROCS(*cpus)
 	num := *n
