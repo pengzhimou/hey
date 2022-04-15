@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rakyll/hey/requester"
@@ -65,9 +66,11 @@ var (
 	disableKeepAlives  = flag.Bool("disable-keepalive", false, "")
 	disableRedirects   = flag.Bool("disable-redirects", false, "")
 	proxyAddr          = flag.String("x", "", "")
+	urlFile            = flag.String("urlfile", "", "")
+	url                = flag.String("url", "", "")
 )
 
-var usage = `Usage: hey [options...] <url>
+var usage = `Usage: hey [options...]
 
 Options:
   -n  Number of requests to run. Default is 200.
@@ -105,6 +108,8 @@ Options:
 
   -cert certfile location
   -key keyfile location
+  -urlfile urlfile location
+  -url url link
 `
 
 func main() {
@@ -116,9 +121,9 @@ func main() {
 	flag.Var(&hs, "H", "")
 
 	flag.Parse()
-	if flag.NArg() < 1 {
-		usageAndExit("")
-	}
+	// if flag.NArg() < 1 {
+	// 	usageAndExit("")
+	// }
 
 	runtime.GOMAXPROCS(*cpus)
 	num := *n
@@ -141,7 +146,7 @@ func main() {
 		}
 	}
 
-	url := flag.Args()[0]
+	// url := flag.Args()[0]
 	method := strings.ToUpper(*m)
 
 	// set content-type
@@ -195,6 +200,28 @@ func main() {
 		}
 	}
 
+	wg := sync.WaitGroup{}
+	if *urlFile == "" {
+		wg.Add(1)
+		go requestFunc(method, *url, bodyAll, header, username, password, num, conc, q, proxyURL, dur, &wg)
+		wg.Wait()
+	} else {
+		data, err := ioutil.ReadFile(*urlFile)
+		if err != nil {
+			panic(fmt.Sprintf("---read fail: %s", err.Error()))
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			if !strings.Contains(line, "http") { //处理空行和换行符
+				continue
+			}
+			wg.Add(1)
+			go requestFunc(method, line, bodyAll, header, username, password, num, conc, q, proxyURL, dur, &wg)
+		}
+		wg.Wait()
+	}
+}
+
+func requestFunc(method string, url string, bodyAll []byte, header http.Header, username, password string, num, conc int, q float64, proxyURL *gourl.URL, dur time.Duration, waitg *sync.WaitGroup) {
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		usageAndExit(err.Error())
@@ -256,6 +283,10 @@ func main() {
 		}()
 	}
 	w.Run()
+
+	defer func() {
+		waitg.Done()
+	}()
 }
 
 func errAndExit(msg string) {
