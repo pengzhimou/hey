@@ -30,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rakyll/hey/requester"
+	"github.com/pengzhimou/hey/requester"
 )
 
 const (
