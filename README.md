@@ -1,26 +1,4 @@
-![hey](http://i.imgur.com/szzD9q0.png)
-
-[![Build Status](https://travis-ci.org/rakyll/hey.svg?branch=master)](https://travis-ci.org/rakyll/hey)
-
-hey is a tiny program that sends some load to a web application.
-
-hey was originally called boom and was influenced from Tarek Ziade's
-tool at [tarekziade/boom](https://github.com/tarekziade/boom). Using the same name was a mistake as it resulted in cases
-where binary name conflicts created confusion.
-To preserve the name for its original owner, we renamed this project to hey.
-
-## Installation
-
-* Linux 64-bit: https://hey-release.s3.us-east-2.amazonaws.com/hey_linux_amd64
-* Mac 64-bit: https://hey-release.s3.us-east-2.amazonaws.com/hey_darwin_amd64
-* Windows 64-bit: https://hey-release.s3.us-east-2.amazonaws.com/hey_windows_amd64
-
-### Package Managers
-
-macOS:
--  [Homebrew](https://brew.sh/) users can use `brew install hey`.
-
-## Usage
+# Usage
 
 hey runs provided number of requests in the provided concurrency level and prints stats.
 
@@ -49,6 +27,7 @@ Options:
   -d  HTTP request body.
   -D  HTTP request body from file. For example, /home/user/file.txt or ./file.txt.
   -T  Content-type, defaults to "text/html".
+  -U  User-Agent, defaults to version "hey/0.0.1".
   -a  Basic authentication, username:password.
   -x  HTTP Proxy address as host:port.
   -h2 Enable HTTP/2.
@@ -60,7 +39,12 @@ Options:
                         connections between different HTTP requests.
   -disable-redirects    Disable following of HTTP redirects
   -cpus                 Number of used cpu cores.
-                        (default for current machine is 8 cores)
+                        (default for current machine is %d cores)
+
+  -cert certfile location
+  -key keyfile location
+  -urlfile urlfile location
+  -url url link
 ```
 
 Previously known as [github.com/rakyll/boom](https://github.com/rakyll/boom).

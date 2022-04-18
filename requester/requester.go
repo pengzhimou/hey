@@ -114,10 +114,12 @@ func (b *Work) writer() io.Writer {
 
 // Init initializes internal data-structures
 func (b *Work) Init() {
-	b.initOnce.Do(func() {
-		b.results = make(chan *result, min(b.C*1000, maxResult))
-		b.stopCh = make(chan struct{}, b.C)
-	})
+	b.initOnce.Do(
+		func() {
+			b.results = make(chan *result, min(b.C*1000, maxResult))
+			b.stopCh = make(chan struct{}, b.C)
+		},
+	)
 }
 
 // Run makes all the requests, prints the summary. It blocks until
@@ -229,7 +231,8 @@ func (b *Work) runWorker(client *http.Client, n int) {
 			return
 		default:
 			if b.QPS > 0 {
-				<-throttle
+				<-throttle //外层有N个runWorker的并发数，此函数是一个worker要访问多少次，如果没有sleep就一股脑发过去了
+				//如果通过sleep变相控制了每秒访问的数量因此-n 1000 -c 100 -q 1 则是一秒访问100次
 			}
 			b.makeRequest(client)
 		}
@@ -237,9 +240,6 @@ func (b *Work) runWorker(client *http.Client, n int) {
 }
 
 func (b *Work) runWorkers() {
-	var wg sync.WaitGroup
-	wg.Add(b.C)
-
 	tr := http.Transport{}
 	certs := tls.Certificate{}
 	if b.Certfile != "" && b.Keyfile != "" {
@@ -290,9 +290,11 @@ func (b *Work) runWorkers() {
 	client := &http.Client{Transport: &tr, Timeout: time.Duration(b.Timeout) * time.Second}
 
 	// Ignore the case where b.N % b.C != 0.
+	var wg sync.WaitGroup
+	wg.Add(b.C)
 	for i := 0; i < b.C; i++ {
 		go func() {
-			b.runWorker(client, b.N/b.C)
+			b.runWorker(client, b.N/b.C) //注意此处去余了，也就是Ignore the case where b.N % b.C != 0
 			wg.Done()
 		}()
 	}

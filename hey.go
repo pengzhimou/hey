@@ -214,7 +214,7 @@ func main() {
 	} else {
 		data, err := ioutil.ReadFile(*urlFile)
 		if err != nil {
-			panic(fmt.Sprintf("---read fail: %s", err.Error()))
+			errAndExit(fmt.Sprintf("---read fail: %s", err.Error()))
 		}
 		for _, line := range strings.Split(string(data), "\n") {
 			if !strings.Contains(line, "http") { //处理空行和换行符
@@ -274,20 +274,25 @@ func requestFunc(method string, url string, bodyAll []byte, header http.Header, 
 		Certfile:           *certfile,
 		Keyfile:            *keyfile,
 	}
+	// 初始化results 和stopCh
 	w.Init()
 
+	// 处理用户终止ctrl-c，调用stop
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		<-c
 		w.Stop()
 	}()
+
+	// 与-n 次数互斥，为运行的时间到了之后的handle
 	if dur > 0 {
 		go func() {
 			time.Sleep(dur)
 			w.Stop()
 		}()
 	}
+
 	w.Run()
 
 	defer func() {

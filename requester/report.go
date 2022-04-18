@@ -86,7 +86,7 @@ func runReporter(r *report) {
 	for res := range r.results {
 		r.numRes++
 		if res.err != nil {
-			r.errorDist[res.err.Error()]++
+			r.errorDist[res.err.Error()]++ //直接用map key去重
 		} else {
 			r.avgTotal += res.duration.Seconds()
 			r.avgConn += res.connDuration.Seconds()
