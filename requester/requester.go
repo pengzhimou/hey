@@ -216,7 +216,7 @@ func (b *Work) makeRequest(c *http.Client) {
 func (b *Work) runWorker(client *http.Client, n int) {
 	var throttle <-chan time.Time
 	if b.QPS > 0 {
-		throttle = time.Tick(time.Duration(1e6/(b.QPS)) * time.Microsecond)
+		throttle = time.Tick(time.Duration(1e6/(b.QPS)) * time.Microsecond) // 1e6/(b.QPS) 100w毫秒即1秒 / 1秒运行多少次= 一次运行的时间 即每次需要间隔多久才能达到这个qps
 	}
 
 	if b.DisableRedirects {
@@ -232,7 +232,7 @@ func (b *Work) runWorker(client *http.Client, n int) {
 		default:
 			if b.QPS > 0 {
 				<-throttle //外层有N个runWorker的并发数，此函数是一个worker要访问多少次，如果没有sleep就一股脑发过去了
-				//如果通过sleep变相控制了每秒访问的数量因此-n 1000 -c 100 -q 1 则是一秒访问100次
+				//如果通过sleep变相控制了每秒访问的数量因此-n 1000 -c 100 -q 2 则是一秒访问100*2次 且 c * q < n ，否则n太小的话不到1s没意义，qps也不宜过大，超过本身性能极限，具体真实值查看  Requests/sec
 			}
 			b.makeRequest(client)
 		}

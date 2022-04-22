@@ -68,6 +68,8 @@ var (
 	proxyAddr          = flag.String("x", "", "")
 	urlFile            = flag.String("urlfile", "", "")
 	url                = flag.String("url", "", "")
+	round              = flag.Int("r", 1, "")
+	roundsleep         = flag.Int("rs", 0, "")
 )
 
 var usage = `Usage: hey [options...]
@@ -110,6 +112,8 @@ Options:
   -key keyfile location
   -urlfile urlfile location
   -url url link
+  -r rounds
+  -rs each round skip time
 `
 
 func main() {
@@ -137,7 +141,7 @@ func main() {
 	q := *q
 	dur := *z
 
-	if dur > 0 {
+	if dur > 0 { //当有 -z的时候，-n失效，会默认给一个极大值2147483647
 		num = math.MaxInt32
 		if conc <= 0 {
 			usageAndExit("-c cannot be smaller than 1.")
@@ -206,10 +210,35 @@ func main() {
 		}
 	}
 
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	brk := false
+	for r := 0; r <= *round; r++ {
+
+		if r != *round {
+			select {
+			case <-c:
+				brk = true
+				break
+			default:
+				jobFunc(method, *url, bodyAll, header, username, password, num, conc, q, proxyURL, dur)
+				if *round > 1 {
+					fmt.Printf("Finished Round: %v, start to sleep:%v second\n", r+1, *roundsleep)
+					fmt.Println("---------------------------------")
+				}
+			}
+			if brk {
+				break
+			}
+			time.Sleep(time.Duration(*roundsleep) * time.Second)
+		}
+	}
+}
+func jobFunc(method string, url string, bodyAll []byte, header http.Header, username, password string, num, conc int, q float64, proxyURL *gourl.URL, dur time.Duration) {
 	wg := sync.WaitGroup{}
 	if *urlFile == "" {
 		wg.Add(1)
-		go requestFunc(method, *url, bodyAll, header, username, password, num, conc, q, proxyURL, dur, &wg)
+		go requestFunc(method, url, bodyAll, header, username, password, num, conc, q, proxyURL, dur, &wg)
 		wg.Wait()
 	} else {
 		data, err := ioutil.ReadFile(*urlFile)
@@ -278,12 +307,7 @@ func requestFunc(method string, url string, bodyAll []byte, header http.Header, 
 	w.Init()
 
 	// 处理用户终止ctrl-c，调用stop
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	go func() {
-		<-c
-		w.Stop()
-	}()
+	userKill(w)
 
 	// 与-n 次数互斥，为运行的时间到了之后的handle
 	if dur > 0 {
@@ -297,6 +321,16 @@ func requestFunc(method string, url string, bodyAll []byte, header http.Header, 
 
 	defer func() {
 		waitg.Done()
+	}()
+}
+
+func userKill(w *requester.Work) {
+	// 处理用户终止ctrl-c，调用stop
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		<-c
+		w.Stop()
 	}()
 }
 
