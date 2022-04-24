@@ -234,6 +234,7 @@ func main() {
 		}
 	}
 }
+
 func jobFunc(method string, url string, bodyAll []byte, header http.Header, username, password string, num, conc int, q float64, proxyURL *gourl.URL, dur time.Duration) {
 	wg := sync.WaitGroup{}
 	if *urlFile == "" {
@@ -319,9 +320,7 @@ func requestFunc(method string, url string, bodyAll []byte, header http.Header, 
 
 	w.Run()
 
-	defer func() {
-		waitg.Done()
-	}()
+	defer waitg.Done()
 }
 
 func userKill(w *requester.Work) {
