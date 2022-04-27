@@ -40,8 +40,8 @@ const (
 )
 
 var (
-	m           = flag.String("m", "GET", "")
-	headers     = flag.String("h", "", "")
+	m = flag.String("m", "GET", "")
+	// headers     = flag.String("h", "", "")
 	body        = flag.String("d", "", "")
 	bodyFile    = flag.String("D", "", "")
 	accept      = flag.String("A", "", "")
@@ -163,9 +163,9 @@ func main() {
 	header := make(http.Header)
 	header.Set("Content-Type", *contentType)
 	// set any other additional headers
-	if *headers != "" {
-		usageAndExit("Flag '-h' is deprecated, please use '-H' instead.")
-	}
+	// if *headers != "" {
+	// 	usageAndExit("Flag '-h' is deprecated, please use '-H' instead.")
+	// }
 	// set any other additional repeatable headers
 	for _, h := range hs {
 		match, err := parseInputWithRegexp(h, headerRegexp)
