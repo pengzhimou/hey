@@ -106,7 +106,7 @@ type Work struct {
 	Certfile string
 	Keyfile  string
 
-	RandMark bool
+	RandMark string
 }
 
 func (b *Work) writer() io.Writer {
@@ -195,19 +195,19 @@ func (b *Work) makeRequest(gort, n int, c *http.Client) {
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 
 	// random part
-	if b.RandMark {
-		req.URL.Host = strings.Replace(req.URL.Host, "HEY", strconv.Itoa(gort)+"-"+strconv.Itoa(n), -1)
-		req.URL.Path = strings.Replace(req.URL.Path, "HEY", strconv.Itoa(gort)+"-"+strconv.Itoa(n), -1)
+	if b.RandMark != "" {
+		req.URL.Host = strings.Replace(req.URL.Host, b.RandMark, strconv.Itoa(gort)+"-"+strconv.Itoa(n), -1)
+		req.URL.Path = strings.Replace(req.URL.Path, b.RandMark, strconv.Itoa(gort)+"-"+strconv.Itoa(n), -1)
 
 		for k, v := range req.Header {
 			tempv := []string{}
 			for _, vv := range v {
-				tempv = append(tempv, strings.Replace(vv, "HEY", strconv.Itoa(gort)+"-"+strconv.Itoa(n), -1))
+				tempv = append(tempv, strings.Replace(vv, b.RandMark, strconv.Itoa(gort)+"-"+strconv.Itoa(n), -1))
 			}
 			req.Header[k] = tempv
 		}
 
-		body := strings.Replace(b.RequestBody, "HEY", strconv.Itoa(gort)+"-"+strconv.Itoa(n), -1)
+		body := strings.Replace(b.RequestBody, b.RandMark, strconv.Itoa(gort)+"-"+strconv.Itoa(n), -1)
 		req.Body = ioutil.NopCloser(bytes.NewReader([]byte(body)))
 
 		req.ContentLength = int64(len(body))

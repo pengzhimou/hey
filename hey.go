@@ -70,7 +70,7 @@ var (
 	url                = flag.String("url", "", "")
 	round              = flag.Int("r", 1, "")
 	roundsleep         = flag.Int("rs", 0, "")
-	randmark           = flag.Bool("randmark", false, "")
+	randmark           = flag.String("randmark", "", "")
 )
 
 var usage = `Usage: hey [options...]
