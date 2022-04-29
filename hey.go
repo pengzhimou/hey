@@ -113,8 +113,8 @@ Options:
   -key keyfile location
   -urlfile urlfile location
   -url url link
-  -r rounds
-  -rs each round skip time
+  -r rounds, should with methord GET only
+  -rs each round skip time, should with methord GET only
   -randmark replace HEY mark from url, header, payload with goroutine number
 `
 
