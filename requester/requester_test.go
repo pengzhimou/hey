@@ -123,7 +123,7 @@ func TestBody(t *testing.T) {
 	req, _ := http.NewRequest("POST", server.URL, bytes.NewBuffer([]byte("Body")))
 	w := &Work{
 		Request:     req,
-		RequestBody: []byte("Body"),
+		RequestBody: "Body",
 		N:           10,
 		C:           1,
 	}

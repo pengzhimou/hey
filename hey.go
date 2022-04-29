@@ -70,6 +70,7 @@ var (
 	url                = flag.String("url", "", "")
 	round              = flag.Int("r", 1, "")
 	roundsleep         = flag.Int("rs", 0, "")
+	randmark           = flag.Bool("randmark", false, "")
 )
 
 var usage = `Usage: hey [options...]
@@ -91,8 +92,8 @@ Options:
       For example, -H "Accept: text/html" -H "Content-Type: application/xml" .
   -t  Timeout for each request in seconds. Default is 20, use 0 for infinite.
   -A  HTTP Accept header.
-  -d  HTTP request body.
-  -D  HTTP request body from file. For example, /home/user/file.txt or ./file.txt.
+  -d  HTTP request body, better with -randmark.
+  -D  HTTP request body from file. better with -randmark.
   -T  Content-type, defaults to "text/html".
   -U  User-Agent, defaults to version "hey/0.0.1".
   -a  Basic authentication, username:password.
@@ -114,6 +115,7 @@ Options:
   -url url link
   -r rounds
   -rs each round skip time
+  -randmark replace HEY mark from url, header, payload with goroutine number
 `
 
 func main() {
@@ -189,16 +191,16 @@ func main() {
 		username, password = match[1], match[2]
 	}
 
-	var bodyAll []byte
+	var bodyAll string
 	if *body != "" {
-		bodyAll = []byte(*body)
+		bodyAll = *body
 	}
 	if *bodyFile != "" {
 		slurp, err := ioutil.ReadFile(*bodyFile)
 		if err != nil {
 			errAndExit(err.Error())
 		}
-		bodyAll = slurp
+		bodyAll = string(slurp)
 	}
 
 	var proxyURL *gourl.URL
@@ -235,7 +237,7 @@ func main() {
 	}
 }
 
-func jobFunc(method string, url string, bodyAll []byte, header http.Header, username, password string, num, conc int, q float64, proxyURL *gourl.URL, dur time.Duration) {
+func jobFunc(method string, url string, bodyAll string, header http.Header, username, password string, num, conc int, q float64, proxyURL *gourl.URL, dur time.Duration) {
 	wg := sync.WaitGroup{}
 	if *urlFile == "" {
 		wg.Add(1)
@@ -257,7 +259,7 @@ func jobFunc(method string, url string, bodyAll []byte, header http.Header, user
 	}
 }
 
-func requestFunc(method string, url string, bodyAll []byte, header http.Header, username, password string, num, conc int, q float64, proxyURL *gourl.URL, dur time.Duration, waitg *sync.WaitGroup) {
+func requestFunc(method string, url string, bodyAll string, header http.Header, username, password string, num, conc int, q float64, proxyURL *gourl.URL, dur time.Duration, waitg *sync.WaitGroup) {
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		usageAndExit(err.Error())
@@ -303,6 +305,7 @@ func requestFunc(method string, url string, bodyAll []byte, header http.Header, 
 		Output:             *output,
 		Certfile:           *certfile,
 		Keyfile:            *keyfile,
+		RandMark:           *randmark,
 	}
 	// 初始化results 和stopCh
 	w.Init()

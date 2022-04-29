@@ -26,6 +26,8 @@ import (
 	"net/http/httptrace"
 	"net/url"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -53,7 +55,7 @@ type Work struct {
 	// Request is the request to be made.
 	Request *http.Request
 
-	RequestBody []byte
+	RequestBody string
 
 	// RequestFunc is a function to generate requests. If it is nil, then
 	// Request and RequestData are cloned for each request.
@@ -103,6 +105,8 @@ type Work struct {
 
 	Certfile string
 	Keyfile  string
+
+	RandMark bool
 }
 
 func (b *Work) writer() io.Writer {
@@ -151,7 +155,7 @@ func (b *Work) Finish() {
 	b.report.finalize(total)
 }
 
-func (b *Work) makeRequest(c *http.Client) {
+func (b *Work) makeRequest(gort, n int, c *http.Client) {
 	s := now()
 	var size int64
 	var code int
@@ -189,13 +193,37 @@ func (b *Work) makeRequest(c *http.Client) {
 		},
 	}
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
+
+	// random part
+	if b.RandMark {
+		req.URL.Host = strings.Replace(req.URL.Host, "HEY", strconv.Itoa(gort)+"-"+strconv.Itoa(n), -1)
+		req.URL.Path = strings.Replace(req.URL.Path, "HEY", strconv.Itoa(gort)+"-"+strconv.Itoa(n), -1)
+
+		for k, v := range req.Header {
+			tempv := []string{}
+			for _, vv := range v {
+				tempv = append(tempv, strings.Replace(vv, "HEY", strconv.Itoa(gort)+"-"+strconv.Itoa(n), -1))
+			}
+			req.Header[k] = tempv
+		}
+
+		body := strings.Replace(b.RequestBody, "HEY", strconv.Itoa(gort)+"-"+strconv.Itoa(n), -1)
+		req.Body = ioutil.NopCloser(bytes.NewReader([]byte(body)))
+
+		req.ContentLength = int64(len(body))
+	}
+	//
+
 	resp, err := c.Do(req)
 	if err == nil {
 		size = resp.ContentLength
 		code = resp.StatusCode
+		// bodybyte, _ = ioutil.ReadAll(resp.Body)
+		// fmt.Println(string(bodybyte), "=====3")
 		io.Copy(ioutil.Discard, resp.Body)
 		resp.Body.Close()
 	}
+
 	t := now()
 	resDuration = t - resStart
 	finish := t - s
@@ -213,7 +241,7 @@ func (b *Work) makeRequest(c *http.Client) {
 	}
 }
 
-func (b *Work) runWorker(client *http.Client, n int) {
+func (b *Work) runWorker(client *http.Client, gort, n int) {
 	var throttle <-chan time.Time
 	if b.QPS > 0 {
 		throttle = time.Tick(time.Duration(1e6/(b.QPS)) * time.Microsecond) // 1e6/(b.QPS) 100w毫秒即1秒 / 1秒运行多少次= 一次运行的时间 即每次需要间隔多久才能达到这个qps
@@ -234,7 +262,7 @@ func (b *Work) runWorker(client *http.Client, n int) {
 				<-throttle //外层有N个runWorker的并发数，此函数是一个worker要访问多少次，如果没有sleep就一股脑发过去了
 				//如果通过sleep变相控制了每秒访问的数量因此-n 1000 -c 100 -q 2 则是一秒访问100*2次 且 c * q < n ，否则n太小的话不到1s没意义，qps也不宜过大，超过本身性能极限，具体真实值查看  Requests/sec
 			}
-			b.makeRequest(client)
+			b.makeRequest(gort, i, client)
 		}
 	}
 }
@@ -292,18 +320,18 @@ func (b *Work) runWorkers() {
 	// Ignore the case where b.N % b.C != 0.
 	var wg sync.WaitGroup
 	wg.Add(b.C)
-	for i := 0; i < b.C; i++ {
-		go func() {
-			b.runWorker(client, b.N/b.C) //注意此处去余了，也就是Ignore the case where b.N % b.C != 0
+	for gort := 0; gort < b.C; gort++ {
+		go func(gr int) {
+			b.runWorker(client, gr, b.N/b.C) //注意此处去余了，也就是Ignore the case where b.N % b.C != 0
 			wg.Done()
-		}()
+		}(gort)
 	}
 	wg.Wait()
 }
 
 // cloneRequest returns a clone of the provided *http.Request.
 // The clone is a shallow copy of the struct and its Header map.
-func cloneRequest(r *http.Request, body []byte) *http.Request {
+func cloneRequest(r *http.Request, body string) *http.Request {
 	// shallow copy of the struct
 	r2 := new(http.Request)
 	*r2 = *r
@@ -313,8 +341,9 @@ func cloneRequest(r *http.Request, body []byte) *http.Request {
 		r2.Header[k] = append([]string(nil), s...)
 	}
 	if len(body) > 0 {
-		r2.Body = ioutil.NopCloser(bytes.NewReader(body))
+		r2.Body = ioutil.NopCloser(bytes.NewReader([]byte(body)))
 	}
+
 	return r2
 }
 
