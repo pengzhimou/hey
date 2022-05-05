@@ -218,7 +218,7 @@ func (b *Work) makeRequest(gort, n int, c *http.Client) {
 	if err == nil {
 		size = resp.ContentLength
 		code = resp.StatusCode
-		// bodybyte, _ = ioutil.ReadAll(resp.Body)
+		// bodybyte, _ := ioutil.ReadAll(resp.Body)
 		// fmt.Println(string(bodybyte), "=====3")
 		io.Copy(ioutil.Discard, resp.Body)
 		resp.Body.Close()
