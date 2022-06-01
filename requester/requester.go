@@ -17,6 +17,7 @@ package requester
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -39,16 +40,18 @@ const maxResult = 1000000
 const maxIdleConn = 500
 
 type result struct {
-	err           error
-	statusCode    int
-	offset        time.Duration
-	duration      time.Duration
-	connDuration  time.Duration // connection setup(DNS lookup + Dial up) duration
-	dnsDuration   time.Duration // dns lookup duration
-	reqDuration   time.Duration // request "write" duration
-	resDuration   time.Duration // response "read" duration
-	delayDuration time.Duration // delay between response and request
-	contentLength int64
+	err             error
+	statusCode      int
+	respbody        []byte
+	respbodyCompare []string
+	offset          time.Duration
+	duration        time.Duration
+	connDuration    time.Duration // connection setup(DNS lookup + Dial up) duration
+	dnsDuration     time.Duration // dns lookup duration
+	reqDuration     time.Duration // request "write" duration
+	resDuration     time.Duration // response "read" duration
+	delayDuration   time.Duration // delay between response and request
+	contentLength   int64
 }
 
 type Work struct {
@@ -106,7 +109,8 @@ type Work struct {
 	Certfile string
 	Keyfile  string
 
-	RandMark string
+	RandMark  string
+	RespCheck []string
 }
 
 func (b *Work) writer() io.Writer {
@@ -215,12 +219,38 @@ func (b *Work) makeRequest(gort, n int, c *http.Client) {
 	//
 
 	resp, err := c.Do(req)
+	var bodybyte []byte
+
 	if err == nil {
 		size = resp.ContentLength
 		code = resp.StatusCode
 		// bodybyte, _ := ioutil.ReadAll(resp.Body)
 		// fmt.Println(string(bodybyte), "=====3")
-		io.Copy(ioutil.Discard, resp.Body)
+		// io.Copy(ioutil.Discard, resp.Body)
+
+		if len(b.RespCheck) != 0 {
+			gzipFlag := false
+			for k, v := range resp.Header {
+				if strings.ToLower(k) == "content-encoding" && strings.ToLower(v[0]) == "gzip" {
+					gzipFlag = true
+				}
+			}
+			if gzipFlag {
+				// 创建 gzip.Reader
+				gr, err := gzip.NewReader(resp.Body)
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+				bodybyte, _ = ioutil.ReadAll(gr)
+				defer gr.Close()
+			} else {
+				bodybyte, err = ioutil.ReadAll(resp.Body)
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+			}
+		}
+
 		resp.Body.Close()
 	}
 
@@ -228,16 +258,18 @@ func (b *Work) makeRequest(gort, n int, c *http.Client) {
 	resDuration = t - resStart
 	finish := t - s
 	b.results <- &result{
-		offset:        s,
-		statusCode:    code,
-		duration:      finish,
-		err:           err,
-		contentLength: size,
-		connDuration:  connDuration,
-		dnsDuration:   dnsDuration,
-		reqDuration:   reqDuration,
-		resDuration:   resDuration,
-		delayDuration: delayDuration,
+		offset:          s,
+		statusCode:      code,
+		respbody:        bodybyte,
+		respbodyCompare: b.RespCheck,
+		duration:        finish,
+		err:             err,
+		contentLength:   size,
+		connDuration:    connDuration,
+		dnsDuration:     dnsDuration,
+		reqDuration:     reqDuration,
+		resDuration:     resDuration,
+		delayDuration:   delayDuration,
 	}
 }
 

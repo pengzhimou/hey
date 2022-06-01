@@ -116,6 +116,7 @@ Options:
   -r rounds, should with method GET only
   -rs each round skip time, should with method GET only
   -randmark replace HEY mark from url, header, payload with goroutine number
+  -respcheck check response body, like -respcheck "\"code\":201" -respcheck "\"msg\":\"good\""
 `
 
 func main() {
@@ -123,8 +124,12 @@ func main() {
 		fmt.Fprint(os.Stderr, fmt.Sprintf(usage, runtime.NumCPU()))
 	}
 
-	var hs headerSlice
+	// var hs headerSlice
+	hs := make(headerSlice, 0)
 	flag.Var(&hs, "H", "")
+
+	rc := make(respCheck, 0)
+	flag.Var(&rc, "respcheck", "")
 
 	flag.Parse()
 
@@ -223,7 +228,7 @@ func main() {
 				brk = true
 				break
 			default:
-				jobFunc(method, *url, bodyAll, header, username, password, num, conc, q, proxyURL, dur)
+				jobFunc(method, *url, bodyAll, header, username, password, num, conc, q, proxyURL, dur, &rc)
 				if *round > 1 {
 					fmt.Printf("Finished Round: %v, start to sleep:%v second\n", r+1, *roundsleep)
 					fmt.Println("---------------------------------")
@@ -237,11 +242,11 @@ func main() {
 	}
 }
 
-func jobFunc(method string, url string, bodyAll string, header http.Header, username, password string, num, conc int, q float64, proxyURL *gourl.URL, dur time.Duration) {
+func jobFunc(method string, url string, bodyAll string, header http.Header, username, password string, num, conc int, q float64, proxyURL *gourl.URL, dur time.Duration, rc *respCheck) {
 	wg := sync.WaitGroup{}
 	if *urlFile == "" {
 		wg.Add(1)
-		go requestFunc(method, url, bodyAll, header, username, password, num, conc, q, proxyURL, dur, &wg)
+		go requestFunc(method, url, bodyAll, header, username, password, num, conc, q, proxyURL, dur, &wg, rc)
 		wg.Wait()
 	} else {
 		data, err := ioutil.ReadFile(*urlFile)
@@ -253,13 +258,13 @@ func jobFunc(method string, url string, bodyAll string, header http.Header, user
 				continue
 			}
 			wg.Add(1)
-			go requestFunc(method, line, bodyAll, header, username, password, num, conc, q, proxyURL, dur, &wg)
+			go requestFunc(method, line, bodyAll, header, username, password, num, conc, q, proxyURL, dur, &wg, rc)
 		}
 		wg.Wait()
 	}
 }
 
-func requestFunc(method string, url string, bodyAll string, header http.Header, username, password string, num, conc int, q float64, proxyURL *gourl.URL, dur time.Duration, waitg *sync.WaitGroup) {
+func requestFunc(method string, url string, bodyAll string, header http.Header, username, password string, num, conc int, q float64, proxyURL *gourl.URL, dur time.Duration, waitg *sync.WaitGroup, rc *respCheck) {
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		usageAndExit(err.Error())
@@ -306,6 +311,7 @@ func requestFunc(method string, url string, bodyAll string, header http.Header, 
 		Certfile:           *certfile,
 		Keyfile:            *keyfile,
 		RandMark:           *randmark,
+		RespCheck:          *rc,
 	}
 	// 初始化results 和stopCh
 	w.Init()
@@ -370,4 +376,50 @@ func (h *headerSlice) String() string {
 func (h *headerSlice) Set(value string) error {
 	*h = append(*h, value)
 	return nil
+}
+
+type respCheck []string
+
+func (h *respCheck) String() string {
+	return fmt.Sprintf("%s", *h)
+}
+
+func (h *respCheck) Set(value string) error {
+	if value != "" {
+		*h = append(*h, value)
+		// vslc := strings.Split(value, ":")
+		// (*h)[strip(vslc[0], " ")] = strip(vslc[1], " ")
+	}
+	return nil
+}
+
+func strip(s_ string, chars_ string) string {
+	s, chars := []rune(s_), []rune(chars_)
+	length := len(s)
+	max := len(s) - 1
+	l, r := true, true //标记当左端或者右端找到正常字符后就停止继续寻找
+	start, end := 0, max
+	tmpEnd := 0
+	charset := make(map[rune]bool) //创建字符集，也就是唯一的字符，方便后面判断是否存在
+	for i := 0; i < len(chars); i++ {
+		charset[chars[i]] = true
+	}
+	for i := 0; i < length; i++ {
+		if _, exist := charset[s[i]]; l && !exist {
+			start = i
+			l = false
+		}
+		tmpEnd = max - i
+		if _, exist := charset[s[tmpEnd]]; r && !exist {
+			end = tmpEnd
+			r = false
+		}
+		if !l && !r {
+			break
+		}
+	}
+	if l && r { // 如果左端和右端都没找到正常字符，那么表示该字符串没有正常字符
+		return ""
+	}
+	return string(s[start : end+1])
 }

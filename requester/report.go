@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"regexp"
 	"sort"
 	"time"
 )
@@ -88,6 +89,13 @@ func runReporter(r *report) {
 		if res.err != nil {
 			r.errorDist[res.err.Error()]++ //直接用map key去重
 		} else {
+			if len(res.respbodyCompare) != 0 {
+				for _, item := range res.respbodyCompare {
+					if exist, _ := regexp.Match(item, res.respbody); !exist {
+						r.errorDist[item]++
+					}
+				}
+			}
 			r.avgTotal += res.duration.Seconds()
 			r.avgConn += res.connDuration.Seconds()
 			r.avgDelay += res.delayDuration.Seconds()

@@ -24,8 +24,8 @@ Options:
       For example, -H "Accept: text/html" -H "Content-Type: application/xml" .
   -t  Timeout for each request in seconds. Default is 20, use 0 for infinite.
   -A  HTTP Accept header.
-  -d  HTTP request body.
-  -D  HTTP request body from file. For example, /home/user/file.txt or ./file.txt.
+  -d  HTTP request body, better with -randmark.
+  -D  HTTP request body from file. better with -randmark.
   -T  Content-type, defaults to "text/html".
   -U  User-Agent, defaults to version "hey/0.0.1".
   -a  Basic authentication, username:password.
@@ -45,6 +45,10 @@ Options:
   -key keyfile location
   -urlfile urlfile location
   -url url link
+  -r rounds, should with method GET only
+  -rs each round skip time, should with method GET only
+  -randmark replace HEY mark from url, header, payload with goroutine number
+  -respcheck check response body, like -respcheck "\"code\":201" -respcheck "\"msg\":\"good\""
 ```
 
 Previously known as [github.com/rakyll/boom](https://github.com/rakyll/boom).
