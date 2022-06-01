@@ -134,13 +134,22 @@ func (r *report) finalize(total time.Duration) {
 }
 
 func (r *report) print() {
+	if r.output != "" {
+		buf := &bytes.Buffer{}
+		if err := newTemplate("").Execute(buf, r.snapshot()); err != nil {
+			log.Println("error:", err.Error())
+			return
+		}
+		r.printf(buf.String())
+		r.printf("\n")
+	}
+
 	buf := &bytes.Buffer{}
 	if err := newTemplate(r.output).Execute(buf, r.snapshot()); err != nil {
 		log.Println("error:", err.Error())
 		return
 	}
 	r.printf(buf.String())
-
 	r.printf("\n")
 }
 
