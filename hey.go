@@ -78,8 +78,8 @@ var usage = `Usage: hey [options...]
 Options:
   -n  Number of requests to run. Default is 200.
   -c  Number of workers to run concurrently. Total number of requests cannot
-      be smaller than the concurrency level. Default is 50.
-  -q  Rate limit, in queries per second (QPS) per worker. Default is no rate limit.
+      be smaller than the concurrency level. Default is 50. Will ignore when -q used.
+  -q  Rate limit, in queries per second (QPS). Default is no rate limit. Can't use with -c.
   -z  Duration of application to send requests. When duration is reached,
       application stops and exits. If duration is specified, n is ignored.
       Examples: -z 10s -z 3m.
@@ -95,7 +95,7 @@ Options:
   -d  HTTP request body, better with -randmark.
   -D  HTTP request body from file. better with -randmark.
   -T  Content-type, defaults to "text/html".
-  -U  User-Agent, defaults to version "hey/0.0.1".
+  -U  User-Agent, defaults to version "hey/0.0.2".
   -a  Basic authentication, username:password.
   -x  HTTP Proxy address as host:port.
   -h2 Enable HTTP/2.

@@ -249,6 +249,8 @@ func (b *Work) makeRequest(gort, n int, c *http.Client) {
 					fmt.Println(err.Error())
 				}
 			}
+		} else {
+			io.Copy(ioutil.Discard, resp.Body) //丢弃结果加速性能
 		}
 
 		resp.Body.Close()
@@ -273,12 +275,33 @@ func (b *Work) makeRequest(gort, n int, c *http.Client) {
 	}
 }
 
-func (b *Work) runWorker(client *http.Client, gort, n int) {
-	var throttle <-chan time.Time
-	if b.QPS > 0 {
-		throttle = time.Tick(time.Duration(1e6/(b.QPS)) * time.Microsecond) // 1e6/(b.QPS) 100w毫秒即1秒 / 1秒运行多少次= 一次运行的时间 即每次需要间隔多久才能达到这个qps
-	}
+// func (b *Work) runWorker(client *http.Client, gort, n int) {
+// 	var throttle <-chan time.Time
+// 	if b.QPS > 0 {
+// 		throttle = time.Tick(time.Duration(1e6/(b.QPS)) * time.Microsecond) // 1e6/(b.QPS) 100w毫秒即1秒 / 1秒运行多少次= 一次运行的时间 即每次需要间隔多久才能达到这个qps
+// 	}
 
+// 	if b.DisableRedirects {
+// 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+// 			return http.ErrUseLastResponse
+// 		}
+// 	}
+// 	for i := 0; i < n; i++ {
+// 		// Check if application is stopped. Do not send into a closed channel.
+// 		select {
+// 		case <-b.stopCh:
+// 			return
+// 		default:
+// 			if b.QPS > 0 {
+// 				<-throttle //外层有N个runWorker的并发数，此函数是一个worker要访问多少次，如果没有sleep就一股脑发过去了
+// 				//如果通过sleep变相控制了每秒访问的数量因此-n 1000 -c 100 -q 2 则是一秒访问100*2次 且 c * q < n ，否则n太小的话不到1s没意义，qps也不宜过大，超过本身性能极限，具体真实值查看  Requests/sec
+// 			}
+// 			b.makeRequest(gort, i, client)
+// 		}
+// 	}
+// }
+
+func (b *Work) runWorker(client *http.Client, gort, n int) {
 	if b.DisableRedirects {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -290,10 +313,6 @@ func (b *Work) runWorker(client *http.Client, gort, n int) {
 		case <-b.stopCh:
 			return
 		default:
-			if b.QPS > 0 {
-				<-throttle //外层有N个runWorker的并发数，此函数是一个worker要访问多少次，如果没有sleep就一股脑发过去了
-				//如果通过sleep变相控制了每秒访问的数量因此-n 1000 -c 100 -q 2 则是一秒访问100*2次 且 c * q < n ，否则n太小的话不到1s没意义，qps也不宜过大，超过本身性能极限，具体真实值查看  Requests/sec
-			}
 			b.makeRequest(gort, i, client)
 		}
 	}
@@ -351,14 +370,36 @@ func (b *Work) runWorkers() {
 
 	// Ignore the case where b.N % b.C != 0.
 	var wg sync.WaitGroup
-	wg.Add(b.C)
-	for gort := 0; gort < b.C; gort++ {
-		go func(gr int) {
-			b.runWorker(client, gr, b.N/b.C) //注意此处去余了，也就是Ignore the case where b.N % b.C != 0
-			wg.Done()
-		}(gort)
+	switch {
+	case b.QPS > 0:
+		var throttle <-chan time.Time
+		throttle = time.Tick(time.Duration(1e6/(b.QPS)) * time.Microsecond) // 1e6/(b.QPS) 100w毫秒即1秒 / 1秒运行多少次= 一次运行的时间 即每次需要间隔多久才能达到这个qps
+
+		for n := 0; n < b.N; n++ {
+			wg.Add(1)
+			select {
+			case <-b.stopCh:
+				return
+			default:
+				<-throttle
+				go func() {
+					b.runWorker(client, -1, 1)
+					wg.Done()
+				}()
+			}
+		}
+		wg.Wait()
+
+	case b.C > 0:
+		wg.Add(b.C)
+		for gort := 0; gort < b.C; gort++ {
+			go func(gr int) {
+				b.runWorker(client, gr, b.N/b.C) //注意此处去余了，也就是Ignore the case where b.N % b.C != 0
+				wg.Done()
+			}(gort)
+		}
+		wg.Wait()
 	}
-	wg.Wait()
 }
 
 // cloneRequest returns a clone of the provided *http.Request.

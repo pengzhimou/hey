@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"regexp"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -91,7 +91,11 @@ func runReporter(r *report) {
 		} else {
 			if len(res.respbodyCompare) != 0 {
 				for _, item := range res.respbodyCompare {
-					if exist, _ := regexp.Match(item, res.respbody); !exist {
+					// if exist, _ := regexp.Match(item, res.respbody); !exist {
+					// 	r.errorDist[item]++
+					// }
+
+					if !strings.Contains(string(res.respbody), item) {
 						r.errorDist[item]++
 					}
 				}
